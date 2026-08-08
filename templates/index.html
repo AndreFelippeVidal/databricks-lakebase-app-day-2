@@ -143,9 +143,17 @@
 </head>
 <body>
   <h1>Stock Watchlist</h1>
-  <p class="hint">Enter a single ticker symbol. This sends exactly ONE call to the Massive API to fetch the latest price, then adds it to your watchlist.</p>
+  <p class="hint">Track your favorite stocks and discover relevant news articles.</p>
+
+  <div class="card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
+    <h2 style="margin: 0 0 8px 0; font-size: 18px; font-weight: 700; color: white;">🔍 Vector Search</h2>
+    <p style="color: rgba(255,255,255,0.9); margin-bottom: 16px; font-size: 14px;">Search through news articles using AI-powered semantic search</p>
+    <a href="/search-page" style="display: inline-block; padding: 10px 20px; background: white; color: #667eea; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">Go to Search →</a>
+  </div>
 
   <div class="card">
+    <h2 style="margin: 0 0 8px 0; font-size: 16px; font-weight: 700;">Add to Watchlist</h2>
+    <p class="hint" style="margin-bottom: 16px;">Enter a single ticker symbol to add to your watchlist.</p>
     <form id="stock-form">
       <label for="symbol">Ticker symbol</label>
       <input type="text" id="symbol" name="symbol" placeholder="AAPL" required>

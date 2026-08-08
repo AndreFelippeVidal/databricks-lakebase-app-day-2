@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Vector Search - News Articles</title>
+  <style>
+    :root {
+      --bg: #f4f6fb;
+      --card-bg: #ffffff;
+      --border: #e4e7ee;
+      --text: #1f2430;
+      --muted: #6b7280;
+      --accent: #4f46e5;
+      --accent-hover: #4338ca;
+      --success: #059669;
+      --radius: 10px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      max-width: 900px;
+      margin: 48px auto;
+      padding: 0 20px;
+      color: var(--text);
+      background: var(--bg);
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 4px;
+      line-height: 1.5;
+    }
+
+    .nav {
+      margin-bottom: 16px;
+    }
+
+    .nav a {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .nav a:hover {
+      text-decoration: underline;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-top: 24px;
+      box-shadow: 0 1px 3px rgba(16, 24, 40, 0.04);
+    }
+
+    .search-controls {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: end;
+    }
+
+    label {
+      display: block;
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    input[type="text"],
+    input[type="number"] {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border-color 0.15s ease;
+    }
+
+    input[type="text"]:focus,
+    input[type="number"]:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+    }
+
+    input[type="number"] {
+      width: 120px;
+    }
+
+    button {
+      padding: 10px 24px;
+      cursor: pointer;
+      border: none;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      transition: background 0.15s ease;
+    }
+
+    button:hover { background: var(--accent-hover); }
+    button:active { transform: translateY(1px); }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid var(--border);
+    }
+
+    .section-header h2 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .section-header .count {
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    .search-result {
+      padding: 18px;
+      margin-bottom: 14px;
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      background: var(--card-bg);
+      border-radius: 6px;
+      transition: box-shadow 0.15s ease;
+    }
+
+    .search-result:hover {
+      box-shadow: 0 2px 8px rgba(16, 24, 40, 0.08);
+    }
+
+    .search-result h3 {
+      margin: 0 0 8px 0;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+      line-height: 1.4;
+    }
+
+    .search-result p {
+      margin: 8px 0;
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--muted);
+    }
+
+    .search-result .meta {
+      display: flex;
+      gap: 16px;
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--muted);
+      flex-wrap: wrap;
+    }
+
+    .ticker-badge {
+      display: inline-block;
+      padding: 3px 10px;
+      background: var(--accent);
+      color: white;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: 11px;
+      letter-spacing: 0.5px;
+    }
+
+    .similarity {
+      color: var(--success);
+      font-weight: 600;
+    }
+
+    .search-result a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .search-result a:hover {
+      text-decoration: underline;
+    }
+
+    .sentiment-positive { color: #059669; }
+    .sentiment-negative { color: #dc2626; }
+    .sentiment-neutral { color: #6b7280; }
+
+    .empty-state {
+      text-align: center;
+      padding: 48px 24px;
+      color: var(--muted);
+    }
+
+    .empty-state h3 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+
+    .loading {
+      text-align: center;
+      padding: 32px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    #status {
+      margin-top: 12px;
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      display: none;
+    }
+
+    #status.show {
+      display: block;
+    }
+
+    #status.error {
+      background: #fef2f2;
+      color: #dc2626;
+      border: 1px solid #fecaca;
+    }
+
+    #status.info {
+      background: #eff6ff;
+      color: #2563eb;
+      border: 1px solid #bfdbfe;
+    }
+  </style>
+</head>
+<body>
+  <div class="nav">
+    <a href="/">← Back to Watchlist</a>
+  </div>
+
+  <h1>Vector Search</h1>
+  <p class="hint">Search through news articles and document chunks using semantic similarity.</p>
+
+  <div class="card">
+    <form id="search-form">
+      <div class="search-controls">
+        <div>
+          <label for="search-query">Search query</label>
+          <input 
+            type="text" 
+            id="search-query" 
+            name="query" 
+            placeholder="e.g., What are analysts saying about AI chips?" 
+            required
+          >
+        </div>
+        <div>
+          <label for="top-n">Top N results</label>
+          <input 
+            type="number" 
+            id="top-n" 
+            name="limit" 
+            min="1" 
+            max="50" 
+            value="10"
+          >
+        </div>
+      </div>
+      <button type="submit" id="search-btn">Search</button>
+    </form>
+    <div id="status"></div>
+  </div>
+
+  <!-- Documents Section -->
+  <div class="card" id="documents-section" style="display: none;">
+    <div class="section-header">
+      <h2>📄 Full Articles</h2>
+      <span class="count" id="documents-count">0 results</span>
+    </div>
+    <div id="documents-results"></div>
+  </div>
+
+  <!-- Chunks Section -->
+  <div class="card" id="chunks-section" style="display: none;">
+    <div class="section-header">
+      <h2>📝 Document Excerpts</h2>
+      <span class="count" id="chunks-count">0 results</span>
+    </div>
+    <div id="chunks-results"></div>
+  </div>
+
+  <script>
+    const searchForm = document.getElementById("search-form");
+    const searchBtn = document.getElementById("search-btn");
+    const statusEl = document.getElementById("status");
+    const documentsSection = document.getElementById("documents-section");
+    const chunksSection = document.getElementById("chunks-section");
+    const documentsResults = document.getElementById("documents-results");
+    const chunksResults = document.getElementById("chunks-results");
+    const documentsCount = document.getElementById("documents-count");
+    const chunksCount = document.getElementById("chunks-count");
+
+    function showStatus(message, type = "info") {
+      statusEl.textContent = message;
+      statusEl.className = `show ${type}`;
+    }
+
+    function hideStatus() {
+      statusEl.className = "";
+    }
+
+    function formatDate(dateString) {
+      if (!dateString) return "N/A";
+      return new Date(dateString).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric"
+      });
+    }
+
+    function renderArticle(article) {
+      const similarity = (article.similarity * 100).toFixed(1);
+      const published = formatDate(article.published_utc);
+      const url = article.article_url || "#";
+      const description = article.description || "No description available";
+      
+      let sentimentHtml = "";
+      if (article.sentiment) {
+        const sentimentClass = `sentiment-${article.sentiment}`;
+        sentimentHtml = `<span class="${sentimentClass}" style="margin-left: 8px;">● ${article.sentiment}</span>`;
+      }
+      
+      return `
+        <div class="search-result">
+          <h3>
+            <span class="ticker-badge">${article.ticker}</span>
+            <a href="${url}" target="_blank" rel="noopener noreferrer">${article.title}</a>
+            ${sentimentHtml}
+          </h3>
+          <p>${description}</p>
+          <div class="meta">
+            <span>📅 ${published}</span>
+            <span class="similarity">✓ ${similarity}% match</span>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderChunk(chunk) {
+      const similarity = (chunk.similarity * 100).toFixed(1);
+      const published = formatDate(chunk.published_utc);
+      const url = chunk.article_url || "#";
+      
+      return `
+        <div class="search-result">
+          <h3>
+            <span class="ticker-badge">${chunk.ticker}</span>
+            <a href="${url}" target="_blank" rel="noopener noreferrer">${chunk.title}</a>
+          </h3>
+          <p>${chunk.chunk_text}</p>
+          <div class="meta">
+            <span>📅 ${published}</span>
+            <span>📄 Chunk ${chunk.chunk_index + 1}</span>
+            <span class="similarity">✓ ${similarity}% match</span>
+          </div>
+        </div>
+      `;
+    }
+
+    searchForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      
+      const query = document.getElementById("search-query").value.trim();
+      const limit = parseInt(document.getElementById("top-n").value);
+      
+      if (!query) {
+        showStatus("Please enter a search query", "error");
+        return;
+      }
+
+      // Reset UI
+      hideStatus();
+      documentsSection.style.display = "none";
+      chunksSection.style.display = "none";
+      documentsResults.innerHTML = "<div class='loading'>Searching articles...</div>";
+      chunksResults.innerHTML = "<div class='loading'>Searching chunks...</div>";
+      searchBtn.disabled = true;
+      searchBtn.textContent = "Searching...";
+
+      try {
+        const resp = await fetch("/search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query, limit, source: "both" }),
+        });
+        
+        const data = await resp.json();
+        
+        if (!resp.ok) {
+          showStatus(`Error: ${data.error || resp.statusText}`, "error");
+          documentsResults.innerHTML = "";
+          chunksResults.innerHTML = "";
+          return;
+        }
+
+        // Render articles
+        documentsSection.style.display = "block";
+        if (data.articles && data.articles.length > 0) {
+          documentsResults.innerHTML = data.articles.map(renderArticle).join("");
+          documentsCount.textContent = `${data.articles.length} result${data.articles.length !== 1 ? 's' : ''}`;
+        } else {
+          documentsResults.innerHTML = `
+            <div class="empty-state">
+              <h3>No articles found</h3>
+              <p>Try adjusting your search query or increasing the number of results.</p>
+            </div>
+          `;
+          documentsCount.textContent = "0 results";
+        }
+
+        // Render chunks
+        chunksSection.style.display = "block";
+        if (data.chunks && data.chunks.length > 0) {
+          chunksResults.innerHTML = data.chunks.map(renderChunk).join("");
+          chunksCount.textContent = `${data.chunks.length} result${data.chunks.length !== 1 ? 's' : ''}`;
+        } else {
+          chunksResults.innerHTML = `
+            <div class="empty-state">
+              <h3>No excerpts found</h3>
+              <p>Try adjusting your search query or increasing the number of results.</p>
+            </div>
+          `;
+          chunksCount.textContent = "0 results";
+        }
+
+        showStatus(`Found ${(data.articles?.length || 0) + (data.chunks?.length || 0)} total results`, "info");
+
+      } catch (err) {
+        showStatus(`Request failed: ${err.message}`, "error");
+        documentsResults.innerHTML = "";
+        chunksResults.innerHTML = "";
+      } finally {
+        searchBtn.disabled = false;
+        searchBtn.textContent = "Search";
+      }
+    });
+  </script>
+</body>
+</html>

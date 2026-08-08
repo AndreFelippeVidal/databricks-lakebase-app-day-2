@@ -29,6 +29,9 @@ _w = WorkspaceClient()
 TABLE_NAME = os.environ.get("MASSIVE_TABLE_NAME", "massive_records")
 WATCHLIST_TABLE_NAME = os.environ.get("WATCHLIST_TABLE_NAME", "watchlist")
 NEWS_TABLE_NAME = os.environ.get("NEWS_TABLE_NAME", "ticker_news_documents")
+EMBEDDINGS_TABLE_NAME = os.environ.get("EMBEDDINGS_TABLE_NAME", "ticker_news_embeddings")
+CHUNK_EMBEDDINGS_TABLE_NAME = os.environ.get("CHUNK_EMBEDDINGS_TABLE_NAME", "ticker_news_chunk_embeddings")
+EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
 
 # Tickers to fetch news for by default (comma-separated), e.g. "AAPL,MSFT,GOOGL"
 DEFAULT_NEWS_TICKERS = [
@@ -137,6 +140,12 @@ def handle_exception(err):
 def index():
     """Simple UI to submit a list of stock symbols to sync from Massive."""
     return render_template("index.html")
+
+
+@app.route("/search-page")
+def search_page():
+    """Vector search interface for news articles and chunks."""
+    return render_template("search.html")
 
 
 @app.route("/records")
@@ -284,6 +293,93 @@ def delete_from_watchlist(symbol: str):
         return jsonify({"error": f"{symbol} is not on your watchlist"}), 404
 
     return jsonify({"symbol": symbol, "email": email, "deleted": True})
+
+
+@app.route("/search", methods=["GET", "POST"])
+def search_news():
+    """
+    Vector similarity search across news articles and chunks.
+    
+    Query parameters (GET) or JSON body (POST):
+    - query: The search query/prompt (required)
+    - limit: Max number of results per source (default: 5, max: 20)
+    - source: "articles", "chunks", or "both" (default: "both")
+    """
+    if request.method == "POST" and request.is_json:
+        query_text = request.json.get("query", "")
+        limit = int(request.json.get("limit", 5))
+        source = request.json.get("source", "both")
+    else:
+        query_text = request.args.get("query", "")
+        limit = int(request.args.get("limit", 5))
+        source = request.args.get("source", "both")
+    
+    query_text = query_text.strip()
+    if not query_text:
+        return jsonify({"error": "Query parameter is required"}), 400
+    
+    limit = min(max(1, limit), 20)
+    
+    # Lazy-load sentence transformers
+    from sentence_transformers import SentenceTransformer
+    model = SentenceTransformer(EMBEDDING_MODEL)
+    
+    # Embed the query
+    query_vector = model.encode([query_text])[0].tolist()
+    vector_str = "[" + ",".join(str(v) for v in query_vector) + "]"
+    
+    results = {}
+    
+    # Search full articles
+    if source in ("articles", "both"):
+        article_rows = lakebase.run_query(
+            f"""
+            SELECT 
+                e.id,
+                e.ticker,
+                e.title,
+                e.published_utc,
+                n.description,
+                n.article_url,
+                n.sentiment,
+                1 - (e.embedding <=> %s::vector) AS similarity
+            FROM {EMBEDDINGS_TABLE_NAME} e
+            LEFT JOIN {NEWS_TABLE_NAME} n ON e.id = n.id
+            ORDER BY e.embedding <=> %s::vector
+            LIMIT %s
+            """,
+            (vector_str, vector_str, limit),
+        )
+        results["articles"] = article_rows
+    
+    # Search chunks
+    if source in ("chunks", "both"):
+        chunk_rows = lakebase.run_query(
+            f"""
+            SELECT 
+                c.id,
+                c.article_id,
+                c.ticker,
+                c.chunk_index,
+                c.chunk_text,
+                n.title,
+                n.article_url,
+                n.published_utc,
+                1 - (c.embedding <=> %s::vector) AS similarity
+            FROM {CHUNK_EMBEDDINGS_TABLE_NAME} c
+            LEFT JOIN {NEWS_TABLE_NAME} n ON c.article_id = n.id
+            ORDER BY c.embedding <=> %s::vector
+            LIMIT %s
+            """,
+            (vector_str, vector_str, limit),
+        )
+        results["chunks"] = chunk_rows
+    
+    results["query"] = query_text
+    results["limit"] = limit
+    results["source"] = source
+    
+    return jsonify(results)
 
 
 def _extract_latest_price(data: dict) -> float | None:
